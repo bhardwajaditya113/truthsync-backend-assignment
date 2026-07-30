@@ -3,7 +3,9 @@ import { fileURLToPath } from "node:url";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 
-const sql = readFileSync(new URL("../migrations/001_initial.sql", import.meta.url), "utf8");
+const migrations = fileURLToPath(new URL("../migrations", import.meta.url));
+const sql = readdirSync(migrations, { encoding: "utf8" }).filter((path) => path.endsWith(".sql"))
+  .sort().map((path) => readFileSync(join(migrations, path), "utf8")).join("\n");
 describe("revenue SQL contract", () => {
   it("uses a positive allow-list join, not a negative status predicate", () => {
     const functionBody = sql.slice(sql.indexOf("create or replace function revenue_by_period"));
