@@ -119,6 +119,7 @@ Render free services can sleep when idle, so the first request may be slow. Supa
 npm run typecheck
 npm test
 npm run build
+npm run verify:db
 npm run demo:failure
 ```
 
