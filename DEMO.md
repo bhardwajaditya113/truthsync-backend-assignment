@@ -4,30 +4,27 @@
 
 Show the README diagram. Explain normalized provider identities, transactional cursor updates, and why integer minor units and per-currency totals prevent false numbers.
 
-## 0:35–1:15 — Live service and real data
+## 0:35–1:35 — Live service, real data, and idempotency
 
-Open `/health`, then call authenticated `POST /sync`. Point out the three independent results and `mode`. Show recent `/sync/runs` entries. Use the half-open range `2025-01-01T00:00:00Z` through `2027-01-01T00:00:00Z` for the hosted sample data.
+Open `https://truthsync-api.onrender.com`, then run:
 
-## 1:15–2:00 — Idempotency
-
-Run `POST /sync` again. Query Supabase:
-
-```sql
-select source, external_id, count(*)
-from normalized_records
-group by source, external_id
-having count(*) > 1;
+```bash
+npm run demo:live
 ```
 
-The result is empty because uniqueness is enforced in Postgres, not assumed in application timing.
+Explain that the command reads the admin token privately from `.env`. Point out `mode: live`, the three independent successful sources, and the immediate replay writing zero records. Then show that the summary total exactly matches the sum of daily buckets.
 
-## 2:00–2:50 — One number, two views
+## 1:35–2:20 — Hosted database proof
 
-Call summary and daily breakdown with the exact same half-open range. Add the buckets and show equality with the summary for each currency. Briefly show `revenue_by_period` and the positive `collected_statuses` join.
+Run:
 
-Insert a transaction with status `future_new_status`, call both endpoints again, and show the total does not change. Then deliberately add that `(source,status)` to the allow-list and show both views change together.
+```bash
+npm run verify:db -- 2025-01-01T00:00:00Z 2027-01-01T00:00:00Z
+```
 
-## 2:50–3:50 — Required edge cases
+Point out `duplicateIdentities: 0`, excluded non-allow-listed transactions, four RLS-protected tables, and zero exposed Supabase API roles.
+
+## 2:20–3:20 — Required edge cases
 
 Run:
 
@@ -37,6 +34,10 @@ npm run demo:failure
 
 Explain that Stripe fails independently, Google Calendar simulates `410` and successfully switches from incremental to full, and HubSpot still lands. Show that the process returns structured per-source results rather than crashing.
 
-## 3:50–4:30 — Verification and tradeoffs
+## 3:20–4:15 — Tests and tradeoffs
 
-Run `npm test`. Mention inclusive cursor overlap plus idempotent upsert, atomic page/cursor commits, unknown-status exclusion, refund handling, and the large-tenant HubSpot time-window follow-up.
+Run `npm test`. Mention inclusive cursor overlap plus idempotent upsert, atomic page/cursor commits, unknown-status exclusion, refund handling, bounded provider timeouts, and the large-tenant HubSpot time-window follow-up.
+
+## 4:15–4:30 — Close
+
+Return to the README and state that the public deployment, source references, tradeoffs, and AI disclosure are linked there.
