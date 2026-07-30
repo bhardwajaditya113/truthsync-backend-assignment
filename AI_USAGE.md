@@ -18,4 +18,9 @@ Human review performed:
 - validated real provider records, an immediate incremental replay, hosted-database reconciliation,
   and both live metrics endpoints before submission.
 
-Conversation/export link: `TBD — paste the shared ChatGPT/Codex conversation URL here before submitting.`
+Sanitized conversation export: [AI_CHAT_EXPORT.md](https://github.com/bhardwajaditya113/truthsync-backend-assignment/blob/main/AI_CHAT_EXPORT.md).
+
+The export contains the chronological user-visible conversation used to build and verify this
+submission. Credentials, authorization URLs and codes, personal/account identifiers, and local
+filesystem paths are replaced with explicit redaction markers; hidden instructions, internal
+reasoning, and tool payloads are not part of the user-visible conversation and are not included.

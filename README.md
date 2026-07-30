@@ -163,7 +163,7 @@ See [DEMO.md](DEMO.md) for a timed script. Show the live health endpoint, run sy
 
 ## AI usage
 
-AI was used for architecture review, implementation assistance, test-case generation, and documentation. Every generated change was reviewed and verified with TypeScript compilation, automated tests, and the deterministic failure demo. Add the public/exported conversation URL to [AI_USAGE.md](AI_USAGE.md) before submission.
+AI was used for architecture review, implementation assistance, test-case generation, and documentation. Every generated change was reviewed and verified with TypeScript compilation, automated tests, and the deterministic failure demo. The full disclosure and sanitization notes are in [AI_USAGE.md](AI_USAGE.md).
 
 ## Submission links
 
@@ -172,4 +172,4 @@ AI was used for architecture review, implementation assistance, test-case genera
 - Public GitHub repository: https://github.com/bhardwajaditya113/truthsync-backend-assignment
 - Sources and references: https://github.com/bhardwajaditya113/truthsync-backend-assignment#sources-and-references
 - AI usage disclosure: https://github.com/bhardwajaditya113/truthsync-backend-assignment/blob/main/AI_USAGE.md
-- AI chat export: `TBD — add the shared conversation URL`
+- Sanitized AI chat export: https://github.com/bhardwajaditya113/truthsync-backend-assignment/blob/main/AI_CHAT_EXPORT.md
