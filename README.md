@@ -85,7 +85,7 @@ The failure demo intentionally makes Stripe unavailable and gives Calendar an ex
 2. Add several contacts and deals, including open and closed-won deals.
 3. Set `HUBSPOT_ACCESS_TOKEN`.
 
-The adapter pages through both CRM object types under one source cursor. Incremental searches use a fixed `[previous high-water, run high-water)` window and provider paging tokens. Contacts normalize as contacts; deals normalize as transactions. Set `HUBSPOT_CURRENCY` to the account currency if a deal omits its currency property.
+The adapter pages through both CRM object types under one source cursor. Incremental searches use a fixed `[previous high-water − 2 minutes, run high-water)` window and provider paging tokens. The small overlap protects against search-index delay and is safe because writes are idempotent. Contacts normalize as contacts; deals normalize as transactions. Set `HUBSPOT_CURRENCY` to the account currency if a deal omits its currency property.
 
 ### Google Calendar
 
@@ -154,6 +154,7 @@ AI was used for architecture review, implementation assistance, test-case genera
 
 - Live deployment: `TBD`
 - Demo video (≤5 minutes): `TBD`
-- Public GitHub repository: `TBD`
-- Sources and references: this README section
-- AI usage/chat export: [AI_USAGE.md](AI_USAGE.md)
+- Public GitHub repository: https://github.com/bhardwajaditya113/truthsync-backend-assignment
+- Sources and references: https://github.com/bhardwajaditya113/truthsync-backend-assignment#sources-and-references
+- AI usage disclosure: https://github.com/bhardwajaditya113/truthsync-backend-assignment/blob/main/AI_USAGE.md
+- AI chat export: `TBD — add the shared conversation URL`

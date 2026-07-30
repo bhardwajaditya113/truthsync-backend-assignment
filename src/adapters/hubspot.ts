@@ -34,12 +34,16 @@ const definitions = {
 
 export class HubSpotAdapter implements SourceAdapter {
   readonly name = "hubspot" as const;
-  constructor(private readonly token: string, private readonly defaultCurrency = "usd") {}
+  constructor(private readonly token: string, private readonly defaultCurrency = "usd",
+    private readonly overlapMs = 120_000) {}
 
   async fetchIncremental(cursor: string): Promise<FetchPage> {
     let parsed: WorkingCursor;
     try { parsed = JSON.parse(cursor); } catch { throw new StaleCursorError("Invalid HubSpot cursor"); }
     if (!parsed.since) throw new StaleCursorError("Invalid HubSpot high-water cursor");
+    const sinceMs = Date.parse(parsed.since);
+    if (!Number.isFinite(sinceMs)) throw new StaleCursorError("Invalid HubSpot high-water timestamp");
+    const overlapSince = new Date(Math.max(0, sinceMs - this.overlapMs)).toISOString();
     const object = parsed.object ?? "contacts";
     const highWater = parsed.highWater ?? new Date().toISOString();
     const definition = definitions[object];
@@ -48,7 +52,7 @@ export class HubSpotAdapter implements SourceAdapter {
       headers: { authorization: `Bearer ${this.token}`, "content-type": "application/json" },
       body: JSON.stringify({
         filterGroups: [{ filters: [
-          { propertyName: definition.modifiedProperty, operator: "GTE", value: parsed.since },
+          { propertyName: definition.modifiedProperty, operator: "GTE", value: overlapSince },
           { propertyName: definition.modifiedProperty, operator: "LT", value: highWater }
         ] }],
         sorts: [definition.modifiedProperty], after: parsed.after, limit: 100,
