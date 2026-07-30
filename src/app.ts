@@ -8,8 +8,10 @@ import { PostgresRepository } from "./db/postgres.js";
 import { SyncOrchestrator } from "./sync/orchestrator.js";
 import { RevenueService } from "./metrics/service.js";
 
-const rangeSchema = z.object({
-  from: z.coerce.date(), to: z.coerce.date(), bucket: z.enum(["day", "week"]).default("day")
+const dateRangeShape = { from: z.coerce.date(), to: z.coerce.date() };
+const summaryRangeSchema = z.object(dateRangeShape).refine((v) => v.from < v.to, { message: "from must be before to" });
+const breakdownRangeSchema = z.object({
+  ...dateRangeShape, bucket: z.enum(["day", "week"]).default("day")
 }).refine((v) => v.from < v.to, { message: "from must be before to" });
 
 export async function buildApp(config: Config, db: Pool, adapters: SourceAdapter[]) {
@@ -31,13 +33,13 @@ export async function buildApp(config: Config, db: Pool, adapters: SourceAdapter
   });
 
   app.get("/metrics/revenue/summary", async (request, reply) => {
-    const parsed = rangeSchema.omit({ bucket: true }).safeParse(request.query);
+    const parsed = summaryRangeSchema.safeParse(request.query);
     if (!parsed.success) return reply.badRequest(parsed.error.issues.map((i) => i.message).join(", "));
     return { from: parsed.data.from, to: parsed.data.to, totals: await metrics.summary(parsed.data.from, parsed.data.to) };
   });
 
   app.get("/metrics/revenue/breakdown", async (request, reply) => {
-    const parsed = rangeSchema.safeParse(request.query);
+    const parsed = breakdownRangeSchema.safeParse(request.query);
     if (!parsed.success) return reply.badRequest(parsed.error.issues.map((i) => i.message).join(", "));
     const rows = await metrics.breakdown(parsed.data.from, parsed.data.to, parsed.data.bucket);
     return { from: parsed.data.from, to: parsed.data.to, bucket: parsed.data.bucket,
