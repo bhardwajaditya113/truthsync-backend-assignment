@@ -6,7 +6,7 @@ Show the README diagram. Explain normalized provider identities, transactional c
 
 ## 0:35–1:15 — Live service and real data
 
-Open `/health`, then call authenticated `POST /sync`. Point out the three independent results and `mode`. Show recent `/sync/runs` entries.
+Open `/health`, then call authenticated `POST /sync`. Point out the three independent results and `mode`. Show recent `/sync/runs` entries. Use the half-open range `2025-01-01T00:00:00Z` through `2027-01-01T00:00:00Z` for the hosted sample data.
 
 ## 1:15–2:00 — Idempotency
 

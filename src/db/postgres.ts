@@ -5,13 +5,15 @@ const { Pool } = pg;
 export const pool = new Pool({ connectionString: process.env.DATABASE_URL, max: 5 });
 
 export class PostgresRepository implements SyncRepository {
+  constructor(private readonly db: pg.Pool = pool) {}
+
   async getSyncState(source: SourceName) {
-    const result = await pool.query<{ cursor: string | null }>("select cursor from sync_state where source = $1", [source]);
+    const result = await this.db.query<{ cursor: string | null }>("select cursor from sync_state where source = $1", [source]);
     return { cursor: result.rows[0]?.cursor ?? null };
   }
 
   async savePage(source: SourceName, records: NormalizedRecord[], nextCursor: string | null | undefined): Promise<void> {
-    const client = await pool.connect();
+    const client = await this.db.connect();
     try {
       await client.query("begin");
       for (const record of records) {
@@ -26,7 +28,7 @@ export class PostgresRepository implements SyncRepository {
              email=excluded.email, amount_minor=excluded.amount_minor,
              currency=excluded.currency, source_status=excluded.source_status,
              metadata=excluded.metadata, ingested_at=now()
-           where normalized_records.source_updated_at <= excluded.source_updated_at`,
+           where normalized_records.source_updated_at < excluded.source_updated_at`,
           [record.source, record.externalId, record.kind, record.occurredAt, record.updatedAt,
             record.name ?? null, record.email ?? null, record.amountMinor ?? null,
             record.currency?.toLowerCase() ?? null, record.sourceStatus?.toLowerCase() ?? null,
@@ -50,7 +52,7 @@ export class PostgresRepository implements SyncRepository {
   }
 
   async recordRun(run: SyncRunResult): Promise<void> {
-    await pool.query(
+    await this.db.query(
       `insert into sync_runs(source,status,mode,records_written,error,finished_at)
        values($1,$2,$3,$4,$5,now())`,
       [run.source, run.status, run.mode, run.recordsWritten, run.error ?? null]

@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import type { NormalizedRecord, SourceName, SyncRepository, SyncRunResult } from "../src/domain/types.js";
 import { DemoAdapter } from "../src/adapters/demo.js";
 import { SyncOrchestrator } from "../src/sync/orchestrator.js";
@@ -15,6 +15,8 @@ class MemoryRepository implements SyncRepository {
   }
   async recordRun(run: SyncRunResult) { this.runs.push(run); }
 }
+
+afterEach(() => vi.useRealTimers());
 
 describe("SyncOrchestrator", () => {
   it("is idempotent across repeated runs", async () => {
@@ -62,5 +64,20 @@ describe("SyncOrchestrator", () => {
     };
     await new SyncOrchestrator(repo).syncOne(adapter);
     expect(seenAtSave).toEqual([null, "durable-sync-cursor"]);
+  });
+
+  it("bounds a hanging source so the run returns a failure", async () => {
+    vi.useFakeTimers();
+    const repo = new MemoryRepository();
+    const adapter: SourceAdapter = {
+      name: "stripe",
+      fetchIncremental: async () => new Promise<FetchPage>(() => undefined),
+      fetchFull: async () => new Promise<FetchPage>(() => undefined)
+    };
+    const pending = new SyncOrchestrator(repo, 100).syncOne(adapter);
+    await vi.advanceTimersByTimeAsync(101);
+    await expect(pending).resolves.toMatchObject({
+      source: "stripe", status: "failed", error: "stripe request timed out after 100ms"
+    });
   });
 });

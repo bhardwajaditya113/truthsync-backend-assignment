@@ -1,8 +1,8 @@
-import type { SourceAdapter, SyncRepository, SyncRunResult } from "../domain/types.js";
+import type { FetchPage, SourceAdapter, SyncRepository, SyncRunResult } from "../domain/types.js";
 import { StaleCursorError } from "../domain/types.js";
 
 export class SyncOrchestrator {
-  constructor(private readonly repository: SyncRepository) {}
+  constructor(private readonly repository: SyncRepository, private readonly requestTimeoutMs = 30_000) {}
 
   async syncAll(adapters: SourceAdapter[]): Promise<SyncRunResult[]> {
     return Promise.all(adapters.map((adapter) => this.syncOne(adapter)));
@@ -19,9 +19,9 @@ export class SyncOrchestrator {
       while (true) {
         let page;
         try {
-          page = mode === "incremental" && cursor
-            ? await adapter.fetchIncremental(cursor)
-            : await adapter.fetchFull(cursor ?? undefined);
+          page = await this.withTimeout(() => mode === "incremental" && cursor
+            ? adapter.fetchIncremental(cursor)
+            : adapter.fetchFull(cursor ?? undefined), adapter.name);
         } catch (error) {
           if (mode !== "incremental" || !(error instanceof StaleCursorError)) throw error;
           mode = "full";
@@ -60,6 +60,22 @@ export class SyncOrchestrator {
       await this.repository.recordRun(result);
     } catch {
       // Observability must never turn one source result into a rejected syncAll.
+    }
+  }
+
+  private async withTimeout(operation: () => Promise<FetchPage>, source: string): Promise<FetchPage> {
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    try {
+      return await Promise.race([
+        operation(),
+        new Promise<never>((_, reject) => {
+          timer = setTimeout(() => reject(new Error(
+            `${source} request timed out after ${this.requestTimeoutMs}ms`
+          )), this.requestTimeoutMs);
+        })
+      ]);
+    } finally {
+      if (timer) clearTimeout(timer);
     }
   }
 }

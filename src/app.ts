@@ -17,7 +17,7 @@ const breakdownRangeSchema = z.object({
 export async function buildApp(config: Config, db: Pool, adapters: SourceAdapter[]) {
   const app = Fastify({ logger: true });
   await app.register(sensible);
-  const sync = new SyncOrchestrator(new PostgresRepository());
+  const sync = new SyncOrchestrator(new PostgresRepository(db));
   const metrics = new RevenueService(db);
 
   app.get("/health", async () => {

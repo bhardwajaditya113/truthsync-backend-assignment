@@ -12,6 +12,7 @@ const schema = z.object({
   GOOGLE_CLIENT_ID: z.string().optional(),
   GOOGLE_CLIENT_SECRET: z.string().optional(),
   GOOGLE_REFRESH_TOKEN: z.string().optional(),
+  GOOGLE_SERVICE_ACCOUNT_JSON: z.string().optional(),
   GOOGLE_CALENDAR_ID: z.string().default("primary"),
   STRIPE_SECRET_KEY: z.string().optional()
 });

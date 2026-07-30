@@ -64,3 +64,37 @@ language sql stable as $$
   group by 1, 2
   order by 1, 2
 $$;
+
+-- Supabase exposes the public schema through its Data API. The backend connects
+-- directly as the database owner, so browser-facing roles need no table or RPC
+-- access. RLS plus explicit revocation keeps provider data and admin state private.
+alter table normalized_records enable row level security;
+alter table collected_statuses enable row level security;
+alter table sync_state enable row level security;
+alter table sync_runs enable row level security;
+
+revoke all privileges on table normalized_records, collected_statuses, sync_state, sync_runs from public;
+revoke all privileges on sequence normalized_records_id_seq, sync_runs_id_seq from public;
+revoke execute on function revenue_by_period(timestamptz, timestamptz, text) from public;
+
+do $security$
+declare api_role text;
+begin
+  foreach api_role in array array['anon', 'authenticated'] loop
+    if exists (select 1 from pg_roles where rolname = api_role) then
+      execute format(
+        'revoke all privileges on table normalized_records, collected_statuses, sync_state, sync_runs from %I',
+        api_role
+      );
+      execute format(
+        'revoke all privileges on sequence normalized_records_id_seq, sync_runs_id_seq from %I',
+        api_role
+      );
+      execute format(
+        'revoke execute on function revenue_by_period(timestamptz, timestamptz, text) from %I',
+        api_role
+      );
+    end if;
+  end loop;
+end
+$security$;

@@ -10,10 +10,13 @@ Backend-only assessment implementing a correctness-first pipeline for HubSpot co
 - Idempotent writes using `unique(source, external_id)` plus `ON CONFLICT ... DO UPDATE`.
 - Protection from out-of-order delivery: an older source version cannot overwrite a newer row.
 - Per-source failure isolation; one outage or schema-validation failure does not wedge the run.
+- Bounded provider calls; a hung upstream becomes a structured source failure after a deadline.
 - An auditable `sync_runs` log and admin-protected sync endpoints.
 - Revenue calculated only from an explicit `(source, status)` allow-list.
 - Summary and daily/weekly views derived from the same Postgres function.
 - Currency-safe totals. Different currencies are never silently added together.
+- Archived HubSpot objects and cancelled Calendar events land as non-collected tombstones.
+- Supabase tables use RLS and explicitly deny browser-facing API roles.
 - A deterministic local failure demo and automated contract tests.
 
 ## Architecture
@@ -49,13 +52,17 @@ Refunded Stripe charges map to `refunded` and are excluded. Partially refunded c
 
 ## Run locally
 
-Requirements: Node.js 20+ and PostgreSQL 15+.
+Requirements: Node.js 22 and PostgreSQL 15+.
 
 ```bash
 cp .env.example .env
 npm install
 npm run migrate
 npm run seed:demo
+npm run seed:hubspot
+npm run seed:stripe
+npm run seed:calendar
+npm run sync:once
 npm test
 npm run dev
 ```
@@ -85,13 +92,16 @@ The failure demo intentionally makes Stripe unavailable and gives Calendar an ex
 2. Add several contacts and deals, including open and closed-won deals.
 3. Set `HUBSPOT_ACCESS_TOKEN`.
 
-The adapter pages through both CRM object types under one source cursor. Incremental searches use a fixed `[previous high-water − 2 minutes, run high-water)` window and provider paging tokens. The small overlap protects against search-index delay and is safe because writes are idempotent. Contacts normalize as contacts; deals normalize as transactions. Set `HUBSPOT_CURRENCY` to the account currency if a deal omits its currency property.
+The adapter pages through both CRM object types under one source cursor. Incremental searches use a fixed `[previous high-water − 2 minutes, run high-water)` window and provider paging tokens. The small overlap protects against search-index delay and is safe because writes are idempotent. Because HubSpot excludes archived objects from search, every run also scans archived contact/deal pages; an archived closed-won deal becomes an `archived` tombstone and stops counting. Currency strings are scaled with the ISO currency exponent without floating-point arithmetic. Set `HUBSPOT_CURRENCY` to the account currency if a deal omits its currency property.
 
 ### Google Calendar
 
-1. Create a Google Cloud project, enable Calendar API, and configure OAuth consent.
-2. Obtain an offline refresh token with Calendar read scope.
-3. Create several events and set the four `GOOGLE_*` variables.
+1. Create a Google Cloud project and enable the Calendar API.
+2. Create a service account and share a dedicated calendar with its email using
+   **Make changes to events** permission. Base64-encode the service-account JSON into
+   `GOOGLE_SERVICE_ACCOUNT_JSON`. OAuth client/secret/refresh-token credentials are
+   also supported as an alternative.
+3. Set `GOOGLE_CALENDAR_ID` to the dedicated calendar ID and run `npm run seed:calendar`.
 
 The initial fetch stores `nextSyncToken`. Incremental fetches reuse it; a `410` triggers a full fetch and replaces the token only after pages commit.
 
@@ -100,7 +110,9 @@ The initial fetch stores `nextSyncToken`. Incremental fetches reuse it; a `410` 
 1. Use a Stripe sandbox/test-mode account and create successful, failed, and refunded payments with test cards.
 2. Set `STRIPE_SECRET_KEY=sk_test_...`.
 
-The adapter reads real test-mode charges, including refund data. Never commit keys or use real card details.
+The adapter reads a full test-mode charge snapshot, then consumes Stripe events for incremental updates so a
+refund applied to an older charge is not missed. Event cursors beyond Stripe's retention window deliberately
+trigger a full snapshot. Never commit keys or use real card details.
 
 ## Supabase and Render deployment
 
@@ -111,7 +123,7 @@ The adapter reads real test-mode charges, including refund data. Never commit ke
 5. Deploy. Render runs migrations before starting and checks `/health`.
 6. Trigger `/sync`, then verify both metrics endpoints for the same range.
 
-Render free services can sleep when idle, so the first request may be slow. Supabase is the durable store; the service never relies on Render's ephemeral filesystem.
+Render free services can sleep when idle, so the first request may be slow. Supabase is the durable store; the service never relies on Render's ephemeral filesystem. The migration enables RLS on every application table and revokes table/function access from Supabase's `anon` and `authenticated` API roles; the backend uses the direct owner connection.
 
 ## Tests and verification
 
@@ -119,18 +131,20 @@ Render free services can sleep when idle, so the first request may be slow. Supa
 npm run typecheck
 npm test
 npm run build
-npm run verify:db
+npm run sync:once
+npm run sync:once # immediate replay proves idempotency
+npm run verify:db -- 2025-01-01T00:00:00Z 2027-01-01T00:00:00Z
 npm run demo:failure
 ```
 
-Tests cover replay idempotency, stale-cursor fallback, source failure isolation, shared revenue computation, summary/breakdown reconciliation, and allow-list SQL structure.
+Tests cover replay idempotency, stale-cursor fallback, source failure isolation/timeouts, Stripe refund events, exact currency scaling, shared revenue computation, summary/breakdown reconciliation, and an architectural guard that forbids direct application reads from the revenue tables.
 
 ## Tradeoffs and production follow-ups
 
 - The assignment-sized orchestrator processes one page at a time. At larger volume I would use a durable queue and source-specific concurrency/rate limiting.
 - HubSpot search can have indexing delay and a 10,000-result cap. Inclusive timestamp overlap protects delay at this scale; a large tenant needs time-window partitioning.
 - A failed full backfill upserts valid pages before failure but does not advance past the failed page. Re-running is safe. A snapshot-generation table would provide atomic visibility for destructive reconciliation.
-- Source deletions are retained as metadata/status rather than physically deleted, preserving auditability.
+- Provider deletions are retained as explicit tombstone statuses rather than physically deleted, preserving auditability without counting deleted revenue.
 - The API returns `207 Multi-Status` when at least one source completes and `503` only if all fail.
 - There is no scheduler dependency: Render or any external cron can call the authenticated `/sync` endpoint.
 
@@ -140,10 +154,10 @@ See [DEMO.md](DEMO.md) for a timed script. Show the live health endpoint, run sy
 
 ## Sources and references
 
-- [HubSpot CRM search](https://developers.hubspot.com/docs/api-reference/latest/crm/search-the-crm) and [Contacts API](https://developers.hubspot.com/docs/api-reference/latest/crm/objects/contacts/guide)
+- [HubSpot CRM search](https://developers.hubspot.com/docs/api-reference/latest/crm/search-the-crm), [object list/archived parameter](https://developers.hubspot.com/docs/api-reference/latest/crm/objects/objects/get-objects), and [Contacts API](https://developers.hubspot.com/docs/api-reference/latest/crm/objects/contacts/guide)
 - [Google Calendar incremental synchronization and `410` recovery](https://developers.google.com/workspace/calendar/api/guides/sync)
-- [Stripe test environments](https://docs.stripe.com/testing-use-cases), [test cards](https://docs.stripe.com/testing), and [Charges list API](https://docs.stripe.com/api/charges/list)
-- [Supabase Postgres connection guidance](https://supabase.com/docs/guides/database/connecting-to-postgres)
+- [Stripe test environments](https://docs.stripe.com/testing-use-cases), [test cards](https://docs.stripe.com/testing), [Charges list API](https://docs.stripe.com/api/charges/list), and [Events API](https://docs.stripe.com/api/events/list)
+- [Supabase Postgres connection guidance](https://supabase.com/docs/guides/database/connecting-to-postgres) and [RLS guidance](https://supabase.com/docs/guides/database/postgres/row-level-security)
 - [Render Node deployment](https://render.com/docs/deploy-node-express-app) and [free-tier limitations](https://render.com/docs/free)
 - [Fastify](https://fastify.dev/docs/latest/), [node-postgres](https://node-postgres.com/), [Zod](https://zod.dev/), and [Vitest](https://vitest.dev/)
 
@@ -153,7 +167,7 @@ AI was used for architecture review, implementation assistance, test-case genera
 
 ## Submission links
 
-- Live deployment: `TBD`
+- Live deployment: https://truthsync-api.onrender.com
 - Demo video (≤5 minutes): `TBD`
 - Public GitHub repository: https://github.com/bhardwajaditya113/truthsync-backend-assignment
 - Sources and references: https://github.com/bhardwajaditya113/truthsync-backend-assignment#sources-and-references

@@ -15,6 +15,7 @@ Human review performed:
 - ran strict TypeScript compilation;
 - ran the complete automated test suite;
 - ran the deterministic failure demonstration;
-- will validate real provider records and both live metrics endpoints before submission.
+- validated real provider records, an immediate incremental replay, hosted-database reconciliation,
+  and both live metrics endpoints before submission.
 
 Conversation/export link: `TBD — paste the shared ChatGPT/Codex conversation URL here before submitting.`

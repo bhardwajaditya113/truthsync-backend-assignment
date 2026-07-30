@@ -1,6 +1,8 @@
 import { z } from "zod";
 import type { FetchPage, SourceAdapter } from "../domain/types.js";
 import { StaleCursorError } from "../domain/types.js";
+import { getGoogleAccessToken, type GoogleCredentials } from "./google-auth.js";
+import { fetchProvider } from "./http.js";
 
 const eventSchema = z.object({
   id: z.string(), summary: z.string().nullish(), status: z.string().nullish(),
@@ -14,8 +16,7 @@ const eventsSchema = z.object({
 
 export class GoogleCalendarAdapter implements SourceAdapter {
   readonly name = "google_calendar" as const;
-  constructor(private readonly clientId: string, private readonly clientSecret: string,
-    private readonly refreshToken: string, private readonly calendarId: string) {}
+  constructor(private readonly credentials: GoogleCredentials, private readonly calendarId: string) {}
 
   async fetchIncremental(cursor: string): Promise<FetchPage> {
     let parsed: { syncToken: string; pageToken?: string };
@@ -34,23 +35,12 @@ export class GoogleCalendarAdapter implements SourceAdapter {
   }
 
   private async request(params: URLSearchParams, syncToken?: string): Promise<FetchPage> {
-    const accessToken = await this.getAccessToken();
+    const accessToken = await getGoogleAccessToken(this.credentials);
     const url = `https://www.googleapis.com/calendar/v3/calendars/${encodeURIComponent(this.calendarId)}/events?${params}`;
-    const response = await fetch(url, { headers: { authorization: `Bearer ${accessToken}` } });
+    const response = await fetchProvider(url, { headers: { authorization: `Bearer ${accessToken}` } });
     if (response.status === 410) throw new StaleCursorError("Google Calendar sync token expired");
     if (!response.ok) throw new Error(`Google Calendar request failed (${response.status})`);
     return this.toPage(await response.json(), syncToken);
-  }
-
-  private async getAccessToken(): Promise<string> {
-    const response = await fetch("https://oauth2.googleapis.com/token", {
-      method: "POST", headers: { "content-type": "application/x-www-form-urlencoded" },
-      body: new URLSearchParams({ client_id: this.clientId, client_secret: this.clientSecret,
-        refresh_token: this.refreshToken, grant_type: "refresh_token" })
-    });
-    if (!response.ok) throw new Error(`Google OAuth refresh failed (${response.status})`);
-    const body = z.object({ access_token: z.string() }).parse(await response.json());
-    return body.access_token;
   }
 
   private toPage(raw: unknown, syncToken?: string): FetchPage {
