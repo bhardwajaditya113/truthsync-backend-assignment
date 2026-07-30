@@ -168,7 +168,7 @@ AI was used for architecture review, implementation assistance, test-case genera
 ## Submission links
 
 - Live deployment: https://truthsync-api.onrender.com
-- Demo video (≤5 minutes): `TBD`
+- Demo video (4:18): https://drive.google.com/file/d/1iKH7pcnl6YLhC72tVelPzEST9UWhrFt7/view?usp=sharing
 - Public GitHub repository: https://github.com/bhardwajaditya113/truthsync-backend-assignment
 - Sources and references: https://github.com/bhardwajaditya113/truthsync-backend-assignment#sources-and-references
 - AI usage disclosure: https://github.com/bhardwajaditya113/truthsync-backend-assignment/blob/main/AI_USAGE.md
