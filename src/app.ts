@@ -20,6 +20,19 @@ export async function buildApp(config: Config, db: Pool, adapters: SourceAdapter
   const sync = new SyncOrchestrator(new PostgresRepository(db));
   const metrics = new RevenueService(db);
 
+  app.get("/", async () => ({
+    name: "TruthSync API",
+    status: "ok",
+    mode: config.DEMO_MODE ? "demo" : "live",
+    endpoints: {
+      health: "GET /health",
+      sync: "POST /sync (Bearer token required)",
+      syncRuns: "GET /sync/runs (Bearer token required)",
+      revenueSummary: "GET /metrics/revenue/summary?from=<ISO>&to=<ISO>",
+      revenueBreakdown: "GET /metrics/revenue/breakdown?from=<ISO>&to=<ISO>&bucket=day|week"
+    }
+  }));
+
   app.get("/health", async () => {
     await db.query("select 1");
     return { status: "ok", mode: config.DEMO_MODE ? "demo" : "live" };

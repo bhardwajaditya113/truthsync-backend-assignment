@@ -12,6 +12,17 @@ describe("metrics API", () => {
   let app: Awaited<ReturnType<typeof buildApp>> | undefined;
   afterEach(async () => { await app?.close(); app = undefined; });
 
+  it("documents the API at the root deployment URL", async () => {
+    const db = { query: async () => ({ rows: [] }) } as unknown as Pool;
+    app = await buildApp(config, db, []);
+    const response = await app.inject({ method: "GET", url: "/" });
+    expect(response.statusCode).toBe(200);
+    expect(response.json()).toMatchObject({
+      name: "TruthSync API", status: "ok", mode: "demo",
+      endpoints: { health: "GET /health", sync: "POST /sync (Bearer token required)" }
+    });
+  });
+
   it("parses and serves the summary range without schema composition errors", async () => {
     const db = { query: async () => ({ rows: [{ currency: "usd", amount_minor: "20000" }] }) } as unknown as Pool;
     app = await buildApp(config, db, []);
